@@ -1,0 +1,158 @@
+---
+title: "Pantheon-Analysis"
+author: "Stefan Gouyet"
+date: "March 4, 2018"
+output: html_document
+---
+
+Objective: Show how there's been changes in famous people depending on regions
+Ideas: changing bar graph 
+
+```{r setup, include=FALSE}
+library(ggplot2)
+library(dplyr)
+library(gganimate)
+library(ggmap)
+library(ggthemes)
+library(leaflet)
+
+```
+
+```{r cars}
+
+
+pantheon <- read.csv("database.csv")
+
+
+head(pantheon)
+
+names(pantheon)
+
+summary(pantheon)
+
+sample_pantheon <- sample_n(pantheon, size=100)
+
+#look at most popular, with over 20,000,000 page views
+most_popular <- pantheon %>% filter(page_views > 10000000) %>% filter(!is.na(latitude))
+
+
+
+```
+
+
+```{r by century histogram}
+pantheon$birth_year <- as.numeric(as.character(pantheon$birth_year))
+
+
+pantheon <- pantheon %>% filter(!(is.na(birth_year)))
+
+i=1
+for (i in 1:nrow(pantheon)){
+  if(sign(pantheon$birth_year[i]) == -1)  {
+    
+    if(nchar(pantheon$birth_year[i]) == 5){
+       abbreviated_year <- substr(pantheon$birth_year[i],2,3)
+       century <- as.numeric(abbreviated_year) + 1
+       pantheon$century[i] <- paste(century,"th Cent BC",sep="")
+    }
+    
+    else if(nchar(pantheon$birth_year[i]) == 4){
+       abbreviated_year <- substr(pantheon$birth_year[i],2,2)
+       century <- as.numeric(abbreviated_year)  + 1
+       pantheon$century[i] <- paste(century,"th Cent BC",sep="")
+    }
+    
+    else{
+       pantheon$century[i] <- "1st Cent BC"
+    }
+  }
+  
+  else if(sign(pantheon$birth_year[i]) == 1){
+    if(nchar(pantheon$birth_year[i]) == 4){
+       abbreviated_year <- substr(pantheon$birth_year[i],1,2)
+       century <- as.numeric(abbreviated_year)  + 1
+       pantheon$century[i] <- paste(century,"th Cent AD",sep="")
+    }
+    else if(nchar(pantheon$birth_year[i]) == 3){
+       abbreviated_year <- substr(pantheon$birth_year[i],1,1)
+       century <- as.numeric(abbreviated_year)  + 1
+       pantheon$century[i] <- paste(century,"th Cent AD",sep="")
+      }
+    else{
+       pantheon$century[i] <- "1st Cent AD"
+    }
+    
+  
+  
+  }
+}
+```
+
+
+
+```{r}
+
+pantheon %>% group_by(country) %>% filter(n() >200) %>% ggplot(aes(x = country)) + geom_histogram(stat = "count")
+
+pantheon %>% group_by(country) %>% filter(birth_year<1000) %>% filter(n() >10) %>% ggplot(aes(x = country)) + geom_histogram(stat = "count")
+
+pantheon_edited_countries <- pantheon %>% filter(country %in% c("United States","United Kingdom", "Italy",
+                                                                "Unknown","France","France","Egypt","Iran",
+                                                                "Palestine","China","Israel","Germany","Greece",
+                                                                "Turkey","Russia","Spain","Netherlands","India"))
+
+p<-ggplot(data=pantheon_edited_countries, aes(x=country, frame=century,cumulative=TRUE)) + geom_histogram(position = "identity",stat="count",fill= "lightblue")
+p
+#gganimate(p)
+```
+
+
+
+
+
+## Including Plots
+```{r by country over time}
+
+#try to get barplots that update as time moves on
+country_animate <- ggplot(data=most_popular, aes(x=country, y = historical_popularity_index, frame = birth_year, cumulative = TRUE)) + geom_bar(stat = "Identity", position = "identity")
+
+gganimate(country_animate, "country_hist.gif" )
+```
+
+
+```{r by continent over time}
+
+continent_animate <- ggplot(data = most_popular, aes(x = continent,
+                                                     frame = birth_year,
+                                                     cumulative = TRUE)) + stat_count()
+
+gganimate(continent_animate, "continent_hist.gif")
+
+```
+
+```{r pressure, echo=FALSE}
+world <- ggplot(data=most_popular, aes(x = longitude, y = latitude, frame = birth_year, 
+                                       cumulative = TRUE)) +
+  borders("world", colour = "grey", fill = "grey") +
+  theme_map() 
+
+pantheon_plot <- world +
+  geom_point(color="red")
+
+gganimate(pantheon_plot, interval = 1, "output1.gif", title_frame = TRUE)
+```
+
+```{r}
+
+leaflet(data = most_popular) %>% addTiles() %>% addMarkers(~longitude,
+                                                              ~latitude, 
+                                                              label= ~full_name, 
+                                                              popup= paste(most_popular$full_name,
+                                                                           "<br>",
+                                                                           most_popular$birth_year)) %>%
+  addProviderTiles(providers$Esri.NatGeoWorldMap)
+
+
+```
+
+
